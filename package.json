@@ -1,0 +1,37 @@
+{
+  "name": "adnviewerbasic",
+  "description": "A basic node.js server sample",
+  "version": "1.0.0",
+  "dependencies": {
+    "express": "^4.14.0",
+    "node-env-file": "^0.1.8",
+    "request": ">= 2.55.0",
+    "serve-favicon": ">= 2.2.0"
+  },
+  "files": [
+    "LICENSE",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">= 0.10.0"
+  },
+  "contributors": [
+    "Philippe Leefsma <philippe.leefsma@autodesk.com>",
+    "Cyrille Fauvel <cyrille@autodesk.com>"
+  ],
+  "license": "MIT",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Developer-Autodesk/workflow-node.js-view.and.data.api.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Developer-Autodesk/workflow-node.js-view.and.data.api/issues"
+  },
+  "homepage": "https://github.com/Developer-Autodesk/workflow-node.js-view.and.data.api#readme",
+  "main": "credentials.js",
+  "devDependencies": {},
+  "author": ""
+}

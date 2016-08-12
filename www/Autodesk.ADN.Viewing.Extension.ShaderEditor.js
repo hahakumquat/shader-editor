@@ -22,7 +22,26 @@ Autodesk.ADN.Viewing.Extension.ShaderEditor = function (viewer, options) {
         '    modelViewMatrix * ',
         '    vec4(position, 1.0);',
         ' }'
-    ].join("\r\n");    
+    ].join("\r\n");  
+    // var vertexText = [
+    //     'precision highp float;',
+    //     'attribute vec3 position;',
+    //     'attribute vec3 normal;',
+    //     'uniform mat3 normalMatrix;',
+    //     'uniform mat4 modelViewMatrix;',
+    //     'uniform mat4 projectionMatrix;',
+    //     'varying vec3 fNormal;',
+    //     'varying vec3 fPosition;',
+    //     '',
+    //     'void main()',
+    //     '{',
+    //     '  fNormal = normalize(normalMatrix * normal);',
+    //     '  vec4 pos = modelViewMatrix * vec4(position, 1.0);',
+    //     '  fPosition = pos.xyz;',
+    //     '  gl_Position = projectionMatrix * pos;',
+    //     '}',
+    // ].join("\r\n");     
+    
     var fragmentText = [
         'void main() {',
         '    gl_FragColor = vec4(1., 1., 1., 1.);',
@@ -33,6 +52,15 @@ Autodesk.ADN.Viewing.Extension.ShaderEditor = function (viewer, options) {
     vertexDocument.setUseWrapMode(true);
     fragmentDocument.setUseWrapMode(true);
     var mode = 0; // 0 for vertex, 1 for fragment
+    var marker = null;
+    var canvas = document.createElement('canvas');
+    var context;
+    try {
+        context = canvas.getContext("webgl") || this.canvas.getContext("experimental-webgl");
+    }
+    catch(e) {
+        console.log(e);
+    }
 
     //////////////////////////////////////////////////////////
     // load callback
@@ -127,13 +155,13 @@ Autodesk.ADN.Viewing.Extension.ShaderEditor = function (viewer, options) {
 
         this.container.style.top = "10px";
         this.container.style.left = "10px";
-        this.container.style.width = "350px";
+        this.container.style.width = "450px";
         this.container.style.height = "200px";
         this.container.style.resize = "auto";
         
         $('#' + baseId + 'PanelContentId').css({
             width: '100%',
-            height: '98%',
+            height: '90%',
         });
         editor = ace.edit(baseId + "PanelContentId");
         editor.setTheme("ace/theme/twilight");
@@ -145,13 +173,25 @@ Autodesk.ADN.Viewing.Extension.ShaderEditor = function (viewer, options) {
         $('#' + baseId + ".dockingPanel").prepend('<button id="editor-vertex" class="editor-button btn btn-primary btn-xs">Vertex</button>');
         $('#' + baseId + ".dockingPanel").prepend('<button id="editor-fragment" class="editor-button btn btn-primary btn-xs">Fragment</button>');
         $('#' + baseId + ".dockingPanel").prepend('<button id="editor-submit" class="editor-button btn btn-primary btn-xs">Apply</button>');
-        
+        $("#" + baseId + ".dockingPanel").prepend('<div id="editor-log"></div>');
+
+         $("#" + baseId).css("overflow-x", "visible");
+        // $("#" + baseId).css("overflow-y", "visible");
         $('.editor-button').css("position", "absolute");
-        $('.editor-button').css("bottom", "10px");
+        $('.editor-button').css("bottom", "10%");
         $('.editor-button').css("z-index", "1");
         $('#editor-submit').css("right", "10px");
         $('#editor-vertex').css("right", "137px");
         $('#editor-fragment').css("right", "62px");
+        $("#editor-log").css({
+            position: "absolute",
+            top: "90%",
+            width: "95%",
+            height: "10%",
+            bottom: "-14px",
+            "margin-left": "10px",
+            color: "white"
+        });
 
         $("#editor-vertex").click(function(e) {
             mode = 0;
@@ -164,13 +204,31 @@ Autodesk.ADN.Viewing.Extension.ShaderEditor = function (viewer, options) {
         $("#editor-submit").click(function(e) {
             if (fragId)
                 setMaterial(fragId);
-            else
-                setMaterial(1);
+            else {
+                fragId = 1;
+                oldMaterial = _viewer.impl.getRenderProxy(_viewer.model, fragId).material;
+                setMaterial(fragId);
+            }
         });
 
         editor.on("change", function(d) {
+            if (marker != null) {
+                editor.getSession().removeMarker(marker.id);
+            }
             var src = editor.session.getValue();
-            // console.log(validate(src, mode));
+            var res = validate(src, mode);
+            var ok = res[0];
+            var line = res[1];
+            var err = res[2];
+            if (!ok) {
+                marker = editor.getSession().highlightLines(Math.max(0, line - 1), Math.max(0, line - 1));
+                $("#editor-log").html("Line " + res[1] + ", " + res[2]);
+                $("#editor-submit").prop("disabled", true);
+            }
+            else {
+                $("#editor-log").html("");
+                $("#editor-submit").prop("disabled", false);
+            }
         });
     };
 
@@ -190,59 +248,68 @@ Autodesk.ADN.Viewing.Extension.ShaderEditor = function (viewer, options) {
 
     function validate(src, type) {
         if (!src) {
-            console.log("Shader cannot be empty");
-            // this.ui.setStatus('Shader cannot be empty');
-            // this.marker = session.highlightLines(0, 0);
+            return [false, 0, "Shader cannot be empty"];
         }
-        
-        var _ref = (function() {
-            var details, error, i, line, lines, log, message, shader, status, _i, _len;
-            try {
-                shader = this.context.createShader(type);
-                this.context.shaderSource(shader, source);
-                this.context.compileShader(shader);
-                console.log('owekfweo');
-                status = this.context.getShaderParameter(shader, this.context.COMPILE_STATUS);
-            } catch (e) {
-                return [false, 0, e.getMessage];
-            }
-            if (status === true) {
-                return [true, null, null];
-            } else {
-                log = this.context.getShaderInfoLog(shader);
-                this.context.deleteShader(shader);
-                lines = log.split('\n');
-                for (_i = 0, _len = lines.length; _i < _len; _i++) {
-                    i = lines[_i];
-                    if (i.substr(0, 5) === 'ERROR') {
-                        error = i;
+        if (!context) {
+            console.warn("No WebGL context.");
+        }
+        var details, error, i, line, lines, log, message, shader, status, _i, _len;
+        try {
+            var shaderType = type === 0 ? context.VERTEX_SHADER : context.FRAGMENT_SHADER;
+            shader = context.createShader(shaderType);
+            context.shaderSource(shader, src);
+            context.compileShader(shader);
+            status = context.getShaderParameter(shader, context.COMPILE_STATUS);
+        }
+        catch(e) {
+            return [false, 0, e.getMessage];
+        }
+        if (status === true) {
+            return [true, null, null];
+        }
+        else {
+            log = context.getShaderInfoLog(shader);
+            // remove undeclared three.js stuff
+            var filterLog = log;
+            lines = filterLog.split('\n');
+            for (_i = 0, _len = lines.length; _i < _len; _i++) {
+                i = lines[_i];
+                if (i.substr(0, 5) === 'ERROR') {
+                    if (i.indexOf("undeclared identifier") > -1) {
+                        if (i.indexOf("projectionMatrix") > -1 ||
+                            i.indexOf("modelViewMatrix")  > -1 ||
+                            i.indexOf("position")         > -1) {
+                            lines.splice(_i, 1);
+                            _i--;
+                            _len--;
+                        }
+                    }
+                    else if (i.indexOf("'constructor' : not enough data provided for construction") > -1) {
+                        lines.splice(_i, 1);
+                        _i--;
+                        _len--;
                     }
                 }
-                if (!error) {
-                    return [false, 0, 'Unable to parse error.'];
-                }
-                details = error.split(':');
-                if (details.length < 4) {
-                    return [false, 0, error];
-                }
-                line = details[2];
-                message = details.splice(3).join(':');
-                return [false, parseInt(line), message];
             }
-        }).call(this);
-        console.log(_ref);
-        var ok = _ref[0];
-        var line = _ref[1];
-        var msg = _ref[2];
-        if (ok) {
-            // this.viewer.updateShader(src, this.conf.mode);
-            // return this.ui.setStatus('Shader successfully compiled', shdr.UI.SUCCESS);
-        } else {
-            line = Math.max(0, line - 1);
-            // this.marker = session.highlightLines(line, line);
-            // return this.ui.setStatus("Line " + line + " : " + msg, shdr.UI.ERROR);
+            for (_i = 0, _len = lines.length; _i < _len; _i++) {
+                i = lines[_i];
+                if (i.substr(0, 5) === 'ERROR') {
+                    error = i;
+                }
+            }
+            if (!error || error[0] === "") {
+                return [true, null, null];
+                // return [false, 0, 'Unable to parse error.'];
+            }
+            details = error.split(':');
+            if (details.length < 4) {
+                return [false, 0, error];
+            }
+            line = details[2];
+            message = details.splice(3).join(':');
+            return [false, parseInt(line), message];
         }
-    };
+    }
 
     Autodesk.ADN.Viewing.Extension.ShaderEditor.Panel.prototype = Object.create(
         Autodesk.Viewing.UI.DockingPanel.prototype);

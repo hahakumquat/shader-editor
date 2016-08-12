@@ -16,32 +16,14 @@ Autodesk.ADN.Viewing.Extension.ShaderEditor = function (viewer, options) {
     var editor; 
     var mode = 0; // 0 -> vertex | 1 -> fragment
     var vertexText = [
+        '// See http://threejs.org/docs/api/renderers/webgl/WebGLProgram.html for variables',
         'void main() ',
         '{',
         '    gl_Position = projectionMatrix * ',
         '    modelViewMatrix * ',
         '    vec4(position, 1.0);',
         ' }'
-    ].join("\r\n");  
-    // var vertexText = [
-    //     'precision highp float;',
-    //     'attribute vec3 position;',
-    //     'attribute vec3 normal;',
-    //     'uniform mat3 normalMatrix;',
-    //     'uniform mat4 modelViewMatrix;',
-    //     'uniform mat4 projectionMatrix;',
-    //     'varying vec3 fNormal;',
-    //     'varying vec3 fPosition;',
-    //     '',
-    //     'void main()',
-    //     '{',
-    //     '  fNormal = normalize(normalMatrix * normal);',
-    //     '  vec4 pos = modelViewMatrix * vec4(position, 1.0);',
-    //     '  fPosition = pos.xyz;',
-    //     '  gl_Position = projectionMatrix * pos;',
-    //     '}',
-    // ].join("\r\n");     
-    
+    ].join("\r\n");      
     var fragmentText = [
         'void main() {',
         '    gl_FragColor = vec4(1., 1., 1., 1.);',

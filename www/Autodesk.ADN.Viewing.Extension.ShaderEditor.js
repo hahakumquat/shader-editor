@@ -26,10 +26,10 @@ Autodesk.ADN.Viewing.Extension.ShaderEditor = function (viewer, options) {
         '// uniform vec3 cameraPosition;',
         '',
         '// Default attributes (do not add):',
-        'attribute vec3 position;',
-        'attribute vec3 normal;',
-        'attribute vec2 uv;',
-        'attribute vec2 uv2;',
+        '// attribute vec3 position;',
+        '// attribute vec3 normal;',
+        '// attribute vec2 uv;',
+        '// attribute vec2 uv2;',
         '',
         'void main() ',
         '{',
@@ -177,8 +177,8 @@ Autodesk.ADN.Viewing.Extension.ShaderEditor = function (viewer, options) {
             .append('<button id="editor-fragment" class="editor-button btn btn-xs">Fragment</button>');
         $('#' + baseId + "shaderEditorContent")
             .append('<button id="editor-vertex" class="editor-button btn btn-xs">Vertex</button>');
-        // $('#' + baseId + "shaderEditorContent")
-        //     .append('<button id="editor-uniform" class="editor-button btn btn-xs">Uniforms</button>');
+        $('#' + baseId + "shaderEditorContent")
+            .append('<button id="editor-uniform" class="editor-button btn btn-xs">Uniforms</button>');
         $("#" + baseId + "shaderEditorContent")
             .append('<div id="editor-log"></div>');
 
@@ -285,9 +285,8 @@ Autodesk.ADN.Viewing.Extension.ShaderEditor = function (viewer, options) {
 
     // sets the material of a fragment
     function setMaterial(fragId) {
-            console.log(uniformDocument.getValue());
         var material = new THREE.ShaderMaterial({
-            // uniforms: JSON.parse(uniformDocument.getValue()),
+            uniforms: eval('('+uniformDocument.getValue()+')'),
             vertexShader: vertexDocument.getValue(),
             fragmentShader: fragmentDocument.getValue(),
             side: THREE.DoubleSide

@@ -1,18 +1,18 @@
-var _viewer;
-
 AutodeskNamespace("Autodesk.ADN.Viewing.Extension");
 
 Autodesk.ADN.Viewing.Extension.ShaderEditor = function (viewer, options) {
 
     Autodesk.Viewing.Extension.call(this, viewer, options);
 
+    // Viewer variables
     var _panelBaseId = newGUID();
-    _viewer = viewer;
+    var _viewer = viewer;
     var _panel = null;
     var _this = this;
     var fragId;
     var oldMaterial;
 
+    // Editor variables
     var editor; 
     var mode = 0; // 0 -> vertex | 1 -> fragment
     var vertexText = [
@@ -48,13 +48,12 @@ Autodesk.ADN.Viewing.Extension.ShaderEditor = function (viewer, options) {
         '}'
     ].join("\r\n");
     var uniformText = [
-        '// return object passed into THREE.ShaderMaterial uniforms field',
-        'return {',
-        '    time: {',
-        '        value: 1.',
+        '{',
+        '    "time": {',
+        '        "value": 1.0',
         '    },',
-        '    resolution: {',
-        '        value: new THREE.Vector2()',
+        '    "resolution": {',
+        '        "value": 1',
         '    }',
         '}'
     ].join("\r\n");
@@ -65,12 +64,14 @@ Autodesk.ADN.Viewing.Extension.ShaderEditor = function (viewer, options) {
     vertexDocument.setUseWrapMode(true);
     fragmentDocument.setUseWrapMode(true);
     uniformDocument.setUseWrapMode(true);
-    var mode = 0; // 0 for vertex, 1 for fragment
+    uniformDocument.setUseWorker(false);
+    var mode = 0; // 0 for vertex, 1 for fragment, 2 for uniforms
+    var isDragging = false; // used for panel resize listener
+
+    // Validator variables
     var marker = null;
     var canvas = document.createElement('canvas');
     var context = canvas.getContext("webgl") || this.canvas.getContext("experimental-webgl");
-
-    var isDragging = false;
 
     //////////////////////////////////////////////////////////
     // load callback
@@ -150,32 +151,41 @@ Autodesk.ADN.Viewing.Extension.ShaderEditor = function (viewer, options) {
         this.container.style.height = "300px";
         this.container.style.resize = "auto";
 
+        var titleHeight = 35;
+        var errorHeight = 24;
+        var resizeTabHeight = 20;
         $("#" + baseId + "shaderEditorContent").css({
             width: "100%",
-            height: "calc(100% - 45px)",
+            height: "calc(100% - " + (resizeTabHeight + titleHeight) + "px)",
             position: "relative"
         });
+        
         $("#" + baseId + "shaderEditorContent").append("<div id='shaderContainer'></div>");
         $("#shaderContainer").css({
             position: "relative",
             width: "100%",
-            height: "calc(100% - 34px)",
+            height: "calc(100% - " + (errorHeight) + "px)",
             top: 0,
             left: 0,
             right: 0,
-            bottom: "24px"
+            bottom: 0
         });
         
-        $('#' + baseId + "shaderEditorContent").append('<button id="editor-submit" class="editor-button btn btn-xs">Apply</button>');
-        $('#' + baseId + "shaderEditorContent").append('<button id="editor-fragment" class="editor-button btn btn-xs">Fragment</button>');
-        $('#' + baseId + "shaderEditorContent").append('<button id="editor-vertex" class="editor-button btn btn-xs">Vertex</button>');
-        $('#' + baseId + "shaderEditorContent").append('<button id="editor-uniform" class="editor-button btn btn-xs">Uniforms</button>');
-        $("#" + baseId + "shaderEditorContent").append('<div id="editor-log"></div>');
+        $('#' + baseId + "shaderEditorContent")
+            .append('<button id="editor-submit" class="editor-button btn btn-xs">Apply</button>');
+        $('#' + baseId + "shaderEditorContent")
+            .append('<button id="editor-fragment" class="editor-button btn btn-xs">Fragment</button>');
+        $('#' + baseId + "shaderEditorContent")
+            .append('<button id="editor-vertex" class="editor-button btn btn-xs">Vertex</button>');
+        // $('#' + baseId + "shaderEditorContent")
+        //     .append('<button id="editor-uniform" class="editor-button btn btn-xs">Uniforms</button>');
+        $("#" + baseId + "shaderEditorContent")
+            .append('<div id="editor-log"></div>');
 
         $(".editor-button").css({
             'margin-left': '2px',
             'margin-right': '2px',
-            float: 'right'
+            'float': 'right'
         });
 
         $("#editor-log").css({
@@ -231,7 +241,7 @@ Autodesk.ADN.Viewing.Extension.ShaderEditor = function (viewer, options) {
             displayError(res);
         });
 
-        // hack for getting panel resize
+        // hack for getting panel resize listener
         $("#" + baseId)
             .mousedown(function() {
                 isDragging = false;
@@ -253,13 +263,16 @@ Autodesk.ADN.Viewing.Extension.ShaderEditor = function (viewer, options) {
         return editor;
     }
 
+    // Prints the error results from validate() in the editor log div
     function displayError(res) {
         if (res !== false) {
             var ok = res[0];
             var line = res[1];
             var err = res[2];
             if (!ok) {
-                marker = editor.getSession().highlightLines(Math.max(0, line - 1), Math.max(0, line - 1));
+                marker = editor.getSession().
+                    highlightLines(Math.max(0, line - 1),
+                                   Math.max(0, line - 1));
                 $("#editor-log").html("Line " + res[1] + ", " + res[2]);
                 // $("#editor-submit").prop("disabled", true);
             }
@@ -270,9 +283,11 @@ Autodesk.ADN.Viewing.Extension.ShaderEditor = function (viewer, options) {
         }
     }
 
+    // sets the material of a fragment
     function setMaterial(fragId) {
-
+            console.log(uniformDocument.getValue());
         var material = new THREE.ShaderMaterial({
+            // uniforms: JSON.parse(uniformDocument.getValue()),
             vertexShader: vertexDocument.getValue(),
             fragmentShader: fragmentDocument.getValue(),
             side: THREE.DoubleSide
@@ -284,8 +299,17 @@ Autodesk.ADN.Viewing.Extension.ShaderEditor = function (viewer, options) {
         _viewer.impl.invalidate(true);
     }
 
+    // Adapted from Shdr Validator class https://github.com/BKcore/Shdr
+    // Creates and validates a shader from a text source based on type
+    // (src, type) -> false || [ok, line, error]
+    // src: glsl text to be validated
+    // type: 0 for vertex shader, 1 for fragment shader, else return false
+    // ok: boolean for whether the shader is ok or not
+    // line: which line number throws error (only if ok is false)
+    // error: description of error (only if ok is false and line != null)
     function validate(src, type) {
-        if (type == 2) {
+        // uniforms don't get validated by glsl
+        if (type !== 0 && type !== 1) {
             return false;
         }
         if (!src) {
@@ -309,10 +333,11 @@ Autodesk.ADN.Viewing.Extension.ShaderEditor = function (viewer, options) {
             return [true, null, null];
         }
         else {
+            // filters out THREE.js handled errors in the raw log
+
             log = context.getShaderInfoLog(shader);
-            // remove undeclared three.js stuff
-            var filterLog = log;
-            lines = filterLog.split('\n');
+            var rawLog = log;
+            lines = rawLog.split('\n');
             for (_i = 0, _len = lines.length; _i < _len; _i++) {
                 i = lines[_i];
                 if (i.substr(0, 5) === 'ERROR') {
@@ -387,7 +412,6 @@ Autodesk.ADN.Viewing.Extension.ShaderEditor = function (viewer, options) {
         this.container.appendChild(this.content);
 
         this.initializeMoveHandlers(this.title);
-        // this.initializeMoveHandlers(this.content);
         this.initializeCloseHandler(this.closer);
         
     };

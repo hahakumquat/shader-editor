@@ -29,20 +29,30 @@ Autodesk.ADN.Viewing.Extension.ShaderEditor = function (viewer, options) {
         '    gl_FragColor = vec4(1., 1., 1., 1.);',
         '}'
     ].join("\r\n");
+    var uniformText = [
+        '// return object passed into THREE.ShaderMaterial uniforms field',
+        'return {',
+        '    time: {',
+        '        value: 1.',
+        '    },',
+        '    resolution: {',
+        '        value: new THREE.Vector2()',
+        '    }',
+        '}'
+    ].join("\r\n");
+
     var vertexDocument = ace.createEditSession(vertexText, "ace/mode/glsl");
     var fragmentDocument = ace.createEditSession(fragmentText, "ace/mode/glsl");
+    var uniformDocument = ace.createEditSession(uniformText, "ace/mode/javascript");
     vertexDocument.setUseWrapMode(true);
     fragmentDocument.setUseWrapMode(true);
+    uniformDocument.setUseWrapMode(true);
     var mode = 0; // 0 for vertex, 1 for fragment
     var marker = null;
     var canvas = document.createElement('canvas');
-    var context;
-    try {
-        context = canvas.getContext("webgl") || this.canvas.getContext("experimental-webgl");
-    }
-    catch(e) {
-        console.log(e);
-    }
+    var context = canvas.getContext("webgl") || this.canvas.getContext("experimental-webgl");
+
+    var isDragging = false;
 
     //////////////////////////////////////////////////////////
     // load callback
@@ -98,25 +108,6 @@ Autodesk.ADN.Viewing.Extension.ShaderEditor = function (viewer, options) {
     };
 
     /////////////////////////////////////////////////////////
-    // new GUID util
-    //
-    /////////////////////////////////////////////////////////
-    function newGUID() {
-
-        var d = new Date().getTime();
-
-        var guid = 'xxxx-xxxx-xxxx-xxxx-xxxx'.replace(
-                /[xy]/g,
-            function (c) {
-                var r = (d + Math.random() * 16) % 16 | 0;
-                d = Math.floor(d / 16);
-                return (c == 'x' ? r : (r & 0x7 | 0x8)).toString(16);
-            });
-
-        return guid;
-    };
-
-    /////////////////////////////////////////////////////////
     // Panel implementation
     //
     /////////////////////////////////////////////////////////
@@ -125,8 +116,8 @@ Autodesk.ADN.Viewing.Extension.ShaderEditor = function (viewer, options) {
         
         this.content = document.createElement('div');
         
-        this.content.id = baseId + 'PanelContentId';
-        this.content.className = 'shadereditor-panel-content';
+        this.content.id = baseId + 'shaderEditorContent';
+        this.content.className = 'shadereditor-content';
 
         Autodesk.Viewing.UI.DockingPanel.call(
             this,
@@ -138,50 +129,69 @@ Autodesk.ADN.Viewing.Extension.ShaderEditor = function (viewer, options) {
         this.container.style.top = "10px";
         this.container.style.left = "10px";
         this.container.style.width = "450px";
-        this.container.style.height = "200px";
+        this.container.style.height = "250px";
         this.container.style.resize = "auto";
-        
-        $('#' + baseId + 'PanelContentId').css({
-            width: '100%',
-            height: '90%',
+
+        $("#" + baseId + "shaderEditorContent").css({
+            width: "100%",
+            height: "calc(100% - 45px)",
+            position: "relative"
         });
-        editor = ace.edit(baseId + "PanelContentId");
+        $("#" + baseId + "shaderEditorContent").append("<div id='shaderContainer'></div>");
+        $("#shaderContainer").css({
+            position: "relative",
+            width: "100%",
+            height: "calc(100% - 34px)",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: "24px"
+        });
+        
+        $('#' + baseId + "shaderEditorContent").append('<button id="editor-submit" class="editor-button btn btn-primary btn-xs">Apply</button>');
+        $('#' + baseId + "shaderEditorContent").append('<button id="editor-fragment" class="editor-button btn btn-primary btn-xs">Fragment</button>');
+        $('#' + baseId + "shaderEditorContent").append('<button id="editor-vertex" class="editor-button btn btn-primary btn-xs">Vertex</button>');
+        $('#' + baseId + "shaderEditorContent").append('<button id="editor-uniform" class="editor-button btn btn-primary btn-xs">Uniforms</button>');
+        $("#" + baseId + "shaderEditorContent").append('<div id="editor-log"></div>');
+
+        $(".editor-button").css({
+            'margin-left': '2px',
+            'margin-right': '2px',
+            'float': 'right'
+        });
+
+        $("#editor-log").css({
+            color: 'white',
+            height: '24px'
+        });
+
+        editor = genEditor(baseId, this);
+    };
+
+    function genEditor(baseId, panel) {
+        
+        var editor = ace.edit("shaderContainer");
         editor.setTheme("ace/theme/twilight");
         editor.setShowPrintMargin(false);
-        var GlslMode = ace.require("ace/mode/glsl").Mode;
-        editor.session.setMode(new GlslMode());
+        editor.setAutoScrollEditorIntoView(true);
         editor.setSession(vertexDocument);
-        editor.focus();
-        $('#' + baseId + ".dockingPanel").prepend('<button id="editor-vertex" class="editor-button btn btn-primary btn-xs">Vertex</button>');
-        $('#' + baseId + ".dockingPanel").prepend('<button id="editor-fragment" class="editor-button btn btn-primary btn-xs">Fragment</button>');
-        $('#' + baseId + ".dockingPanel").prepend('<button id="editor-submit" class="editor-button btn btn-primary btn-xs">Apply</button>');
-        $("#" + baseId + ".dockingPanel").prepend('<div id="editor-log"></div>');
 
-         $("#" + baseId).css("overflow-x", "visible");
-        // $("#" + baseId).css("overflow-y", "visible");
-        $('.editor-button').css("position", "absolute");
-        $('.editor-button').css("bottom", "10%");
-        $('.editor-button').css("z-index", "1");
-        $('#editor-submit').css("right", "10px");
-        $('#editor-vertex').css("right", "137px");
-        $('#editor-fragment').css("right", "62px");
-        $("#editor-log").css({
-            position: "absolute",
-            top: "90%",
-            width: "95%",
-            height: "10%",
-            bottom: "-14px",
-            "margin-left": "10px",
-            color: "white"
+        $("#editor-uniform").click(function(e) {
+            $("#editor-log").html("");
+            editor.setSession(uniformDocument);
+            editor.focus();
         });
-
         $("#editor-vertex").click(function(e) {
             mode = 0;
+            $("#editor-log").html("");
             editor.setSession(vertexDocument);
+            editor.focus();
         });
         $("#editor-fragment").click(function(e) {
             mode = 1;
+            $("#editor-log").html("");
             editor.setSession(fragmentDocument);
+            editor.focus();
         });
         $("#editor-submit").click(function(e) {
             if (fragId)
@@ -192,27 +202,50 @@ Autodesk.ADN.Viewing.Extension.ShaderEditor = function (viewer, options) {
                 setMaterial(fragId);
             }
         });
-
         editor.on("change", function(d) {
             if (marker != null) {
                 editor.getSession().removeMarker(marker.id);
             }
             var src = editor.session.getValue();
             var res = validate(src, mode);
-            var ok = res[0];
-            var line = res[1];
-            var err = res[2];
-            if (!ok) {
-                marker = editor.getSession().highlightLines(Math.max(0, line - 1), Math.max(0, line - 1));
-                $("#editor-log").html("Line " + res[1] + ", " + res[2]);
-                $("#editor-submit").prop("disabled", true);
-            }
-            else {
-                $("#editor-log").html("");
-                $("#editor-submit").prop("disabled", false);
-            }
+            displayError(res);
         });
-    };
+
+        $("#" + baseId)
+            .mousedown(function() {
+                isDragging = false;
+            })
+            .mousemove(function() {
+                var wasDragging = isDragging;
+                isDragging = true;
+                if (wasDragging)
+                    editor.resize();
+            })
+            .mouseup(function() {
+                var wasDragging = isDragging;
+                isDragging = false;
+                if (!wasDragging) {
+                    editor.resize();
+                }
+            });
+        
+        return editor;
+    }
+
+    function displayError(res) {
+        var ok = res[0];
+        var line = res[1];
+        var err = res[2];
+        if (!ok) {
+            marker = editor.getSession().highlightLines(Math.max(0, line - 1), Math.max(0, line - 1));
+            $("#editor-log").html("Line " + res[1] + ", " + res[2]);
+            // $("#editor-submit").prop("disabled", true);
+        }
+        else {
+            $("#editor-log").html("");
+            // $("#editor-submit").prop("disabled", false);
+        }
+    }
 
     function setMaterial(fragId) {
 
@@ -308,17 +341,40 @@ Autodesk.ADN.Viewing.Extension.ShaderEditor = function (viewer, options) {
         this.title = this.createTitleBar(
             this.titleLabel ||
                 this.container.id);
+        $(this.title).attr("id", "editor-title");
 
         this.closer = this.createCloseButton();
 
-        // this.container.appendChild(this.title);
+        this.container.appendChild(this.title);
         this.title.appendChild(this.closer);
         this.container.appendChild(this.content);
 
-        // this.initializeMoveHandlers(this.title);
-        this.initializeMoveHandlers(this.content);
+        this.initializeMoveHandlers(this.title);
+        // this.initializeMoveHandlers(this.content);
         this.initializeCloseHandler(this.closer);
+        
     };
+
+    /////////////////////////////////////////////////////////
+    // new GUID util
+    //
+    /////////////////////////////////////////////////////////
+    function newGUID() {
+
+        var d = new Date().getTime();
+
+        var guid = 'xxxx-xxxx-xxxx-xxxx-xxxx'.replace(
+                /[xy]/g,
+            function (c) {
+                var r = (d + Math.random() * 16) % 16 | 0;
+                d = Math.floor(d / 16);
+                return (c == 'x' ? r : (r & 0x7 | 0x8)).toString(16);
+            });
+
+        return guid;
+    };
+
+
 };
 
 Autodesk.ADN.Viewing.Extension.ShaderEditor.prototype =

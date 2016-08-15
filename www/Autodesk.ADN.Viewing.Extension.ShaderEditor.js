@@ -148,16 +148,16 @@ Autodesk.ADN.Viewing.Extension.ShaderEditor = function (viewer, options) {
             bottom: "24px"
         });
         
-        $('#' + baseId + "shaderEditorContent").append('<button id="editor-submit" class="editor-button btn btn-primary btn-xs">Apply</button>');
-        $('#' + baseId + "shaderEditorContent").append('<button id="editor-fragment" class="editor-button btn btn-primary btn-xs">Fragment</button>');
-        $('#' + baseId + "shaderEditorContent").append('<button id="editor-vertex" class="editor-button btn btn-primary btn-xs">Vertex</button>');
-        $('#' + baseId + "shaderEditorContent").append('<button id="editor-uniform" class="editor-button btn btn-primary btn-xs">Uniforms</button>');
+        $('#' + baseId + "shaderEditorContent").append('<button id="editor-submit" class="editor-button btn btn-xs">Apply</button>');
+        $('#' + baseId + "shaderEditorContent").append('<button id="editor-fragment" class="editor-button btn btn-xs">Fragment</button>');
+        $('#' + baseId + "shaderEditorContent").append('<button id="editor-vertex" class="editor-button btn btn-xs">Vertex</button>');
+        $('#' + baseId + "shaderEditorContent").append('<button id="editor-uniform" class="editor-button btn btn-xs">Uniforms</button>');
         $("#" + baseId + "shaderEditorContent").append('<div id="editor-log"></div>');
 
         $(".editor-button").css({
             'margin-left': '2px',
             'margin-right': '2px',
-            'float': 'right'
+            float: 'right'
         });
 
         $("#editor-log").css({
@@ -177,6 +177,7 @@ Autodesk.ADN.Viewing.Extension.ShaderEditor = function (viewer, options) {
         editor.setSession(vertexDocument);
 
         $("#editor-uniform").click(function(e) {
+            mode = 2;
             $("#editor-log").html("");
             editor.setSession(uniformDocument);
             editor.focus();
@@ -211,6 +212,7 @@ Autodesk.ADN.Viewing.Extension.ShaderEditor = function (viewer, options) {
             displayError(res);
         });
 
+        // hack for getting panel resize
         $("#" + baseId)
             .mousedown(function() {
                 isDragging = false;
@@ -233,17 +235,19 @@ Autodesk.ADN.Viewing.Extension.ShaderEditor = function (viewer, options) {
     }
 
     function displayError(res) {
-        var ok = res[0];
-        var line = res[1];
-        var err = res[2];
-        if (!ok) {
-            marker = editor.getSession().highlightLines(Math.max(0, line - 1), Math.max(0, line - 1));
-            $("#editor-log").html("Line " + res[1] + ", " + res[2]);
-            // $("#editor-submit").prop("disabled", true);
-        }
-        else {
-            $("#editor-log").html("");
-            // $("#editor-submit").prop("disabled", false);
+        if (res !== false) {
+            var ok = res[0];
+            var line = res[1];
+            var err = res[2];
+            if (!ok) {
+                marker = editor.getSession().highlightLines(Math.max(0, line - 1), Math.max(0, line - 1));
+                $("#editor-log").html("Line " + res[1] + ", " + res[2]);
+                // $("#editor-submit").prop("disabled", true);
+            }
+            else {
+                $("#editor-log").html("");
+                // $("#editor-submit").prop("disabled", false);
+            }
         }
     }
 
@@ -262,6 +266,9 @@ Autodesk.ADN.Viewing.Extension.ShaderEditor = function (viewer, options) {
     }
 
     function validate(src, type) {
+        if (type == 2) {
+            return false;
+        }
         if (!src) {
             return [false, 0, "Shader cannot be empty"];
         }

@@ -17,6 +17,20 @@ Autodesk.ADN.Viewing.Extension.ShaderEditor = function (viewer, options) {
     var mode = 0; // 0 -> vertex | 1 -> fragment
     var vertexText = [
         '// See http://threejs.org/docs/api/renderers/webgl/WebGLProgram.html for variables',
+        '// Default uniforms (do not add):',
+        '// uniform mat4 modelMatrix;',
+        '// uniform mat4 modelViewMatrix;',
+        '// uniform mat4 projectionMatrix;',
+        '// uniform mat4 viewMatrix;',
+        '// uniform mat3 normalMatrix;',
+        '// uniform vec3 cameraPosition;',
+        '',
+        '// Default attributes (do not add):',
+        'attribute vec3 position;',
+        'attribute vec3 normal;',
+        'attribute vec2 uv;',
+        'attribute vec2 uv2;',
+        '',
         'void main() ',
         '{',
         '    gl_Position = projectionMatrix * ',
@@ -25,6 +39,10 @@ Autodesk.ADN.Viewing.Extension.ShaderEditor = function (viewer, options) {
         ' }'
     ].join("\r\n");      
     var fragmentText = [
+        '// Default uniforms (do not add):',
+        '// uniform mat4 viewMatrix;',
+        '// uniform vec3 cameraPosition;',
+        '',
         'void main() {',
         '    gl_FragColor = vec4(1., 1., 1., 1.);',
         '}'
@@ -129,7 +147,7 @@ Autodesk.ADN.Viewing.Extension.ShaderEditor = function (viewer, options) {
         this.container.style.top = "10px";
         this.container.style.left = "10px";
         this.container.style.width = "450px";
-        this.container.style.height = "250px";
+        this.container.style.height = "300px";
         this.container.style.resize = "auto";
 
         $("#" + baseId + "shaderEditorContent").css({
@@ -162,7 +180,8 @@ Autodesk.ADN.Viewing.Extension.ShaderEditor = function (viewer, options) {
 
         $("#editor-log").css({
             color: 'white',
-            height: '24px'
+            height: '24px',
+            margin: '2 2 2 2'
         });
 
         editor = genEditor(baseId, this);
@@ -299,12 +318,23 @@ Autodesk.ADN.Viewing.Extension.ShaderEditor = function (viewer, options) {
                 if (i.substr(0, 5) === 'ERROR') {
                     if (i.indexOf("undeclared identifier") > -1) {
                         if (i.indexOf("projectionMatrix") > -1 ||
-                            i.indexOf("modelViewMatrix")  > -1 ||
-                            i.indexOf("position")         > -1) {
+                            i.indexOf("modelMatrix") > -1 ||
+                            i.indexOf("modelViewMatrix") > -1 ||
+                            i.indexOf("viewMatrix") > -1 ||
+                            i.indexOf("cameraPosition") > -1 ||
+                            i.indexOf("normal") > -1 ||
+                            i.indexOf("uv") > -1 ||
+                            i.indexOf("uv2") > -1 ||
+                            i.indexOf("position") > -1) {
                             lines.splice(_i, 1);
                             _i--;
                             _len--;
                         }
+                    }
+                    else if (i.indexOf("No precision specified for (float)") > -1) {
+                        lines.splice(_i, 1);
+                        _i--;
+                        _len--;
                     }
                     else if (i.indexOf("'constructor' : not enough data provided for construction") > -1) {
                         lines.splice(_i, 1);
